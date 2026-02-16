@@ -24,6 +24,6 @@ Just a late-night experiment to see how far I could push modern CSS. It’s a fu
     Solarpunk: Default day mode.
 
     Cyberpunk: Hit the checkbox to toggle the neon night glow.
-    was a bit stressful (took me all day LOL)
-
+    
+was a bit stressful (took me all day LOL)
 Want me to help you draft a "Known Issues" or "Browser Support" section (like why Firefox handles 3D transforms differently than Chrome)?
