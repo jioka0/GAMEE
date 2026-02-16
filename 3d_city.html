@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Living 3D City Block (Pure CSS)</title>
+    <style>
+        /* --- CSS VARIABLES & THEME --- */
+        :root {
+            /* Architecture */
+            --grid-size: 60px;
+            --building-height: 120px;
+
+            /* Day Mode (Default) */
+            --bg-color: #dbeafe;
+            /* Soft Sky Blue */
+            --ground-color: #f1f5f9;
+            --road-color: #94a3b8;
+            --building-color: #ffffff;
+            --building-side-color: #cbd5e1;
+            --window-color: rgba(56, 189, 248, 0.2);
+            /* Light Blue Glass */
+            --window-glow: transparent;
+            --shadow-opacity: 0.15;
+            --neon-color: transparent;
+            --cloud-opacity: 0.8;
+            --text-color: #1e293b;
+        }
+
+        /* --- GLOBAL CHECKBOX HACK (STATE MANAGEMENT) --- */
+        #night-mode {
+            display: none;
+        }
+
+        /* Night Mode Overrides */
+        #night-mode:checked~.scene-wrapper {
+            --bg-color: #0f172a;
+            /* Deep Navy */
+            --ground-color: #1e293b;
+            --road-color: #334155;
+            --building-color: #1e293b;
+            /* Dark Buildings */
+            --building-side-color: #0f172a;
+            --window-color: rgba(0, 0, 0, 0.9);
+            --window-glow: #f472b6;
+            /* Pink Neon Glow */
+            --shadow-opacity: 0.5;
+            --neon-color: #22d3ee;
+            /* Cyan Neon */
+            --cloud-opacity: 0.1;
+            --text-color: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            transition: background-color 1s ease;
+        }
+
+        /* --- UI CONTROLS --- */
+        .controls {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px 24px;
+            border-radius: 50px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: color 1s;
+        }
+
+        .toggle-btn {
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            user-select: none;
+        }
+
+        .toggle-btn::before {
+            content: '☀';
+            font-size: 18px;
+        }
+
+        #night-mode:checked~.controls .toggle-btn::before {
+            content: '☾';
+        }
+
+        /* --- SCENE WRAPPER --- */
+        .scene-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 2000px;
+            /* Optional perspective for more depth */
+            transition: --bg-color 1s;
+        }
+
+        /* --- ISOMETRIC SCENE --- */
+        .scene {
+            position: relative;
+            /* STRICT ISOMETRIC: RotateX(60) RotateZ(45) */
+            transform: rotateX(60deg) rotateZ(45deg);
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
+        }
+
+        .city-grid {
+            display: grid;
+            grid-template-columns: repeat(6, var(--grid-size));
+            grid-template-rows: repeat(6, var(--grid-size));
+            gap: 30px;
+            /* Wide streets */
+            background-color: var(--ground-color);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow:
+                30px 30px 80px rgba(0, 0, 0, var(--shadow-opacity)),
+                inset 0 0 100px rgba(0, 0, 0, 0.05);
+            transform-style: preserve-3d;
+            transition: background-color 1s, box-shadow 1s;
+        }
+
+        /* --- 1 DIV = 1 BUILDING ARCHITECTURE --- */
+        .building {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: var(--building-color);
+            /* The element itself is the ROOF */
+            transform-style: preserve-3d;
+            transform: translateZ(var(--h, 60px));
+            /* Lift roof to height */
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 1s;
+            cursor: pointer;
+        }
+
+        /* Focus State: Pop Up */
+        .building:hover {
+            transform: translateZ(calc(var(--h, 60px) + 30px));
+            z-index: 100;
+            /* Ensure pop up doesn't clip */
+        }
+
+        /* --- WALL CONSTRUCTION --- */
+        /* 
+           Using preserve-3d logic to create perfect vertical walls.
+           South-East Face (Right) and South-West Face (Left).
+        */
+
+        /* RIGHT FACE (Shadowed) */
+        .building::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: var(--h, 60px);
+            /* The wall extends DOWN, which is Width in rotated space */
+            height: 100%;
+            background-color: var(--building-side-color);
+            filter: brightness(0.8);
+            transform-origin: right center;
+            transform: rotateY(90deg);
+            transition: background-color 1s;
+            pointer-events: none;
+        }
+
+        /* LEFT FACE (Lighter) */
+        .building::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--h, 60px);
+            /* Extends down */
+            background-color: var(--building-side-color);
+            filter: brightness(0.9);
+            transform-origin: bottom center;
+            transform: rotateX(90deg);
+            transition: background-color 1s;
+            pointer-events: none;
+        }
+
+        /* --- WINDOWS --- */
+        /* Use gradients to simulate glass grid */
+        .building::before,
+        .building::after {
+            background-image:
+                linear-gradient(var(--window-color) 2px, transparent 2px),
+                linear-gradient(90deg, var(--window-color) 2px, transparent 2px);
+            background-size: 15px 15px;
+        }
+
+        /* Neon & Light Up Effects (Night Mode) */
+        #night-mode:checked~.scene-wrapper .building:hover::before,
+        #night-mode:checked~.scene-wrapper .building:hover::after {
+            background-color: #3b82f6;
+            /* Lit up room color */
+            box-shadow: inset 0 0 20px var(--window-glow);
+        }
+
+        /* Random lit windows in night mode */
+        #night-mode:checked~.scene-wrapper .building::before,
+        #night-mode:checked~.scene-wrapper .building::after {
+            background-image:
+                linear-gradient(var(--window-color) 2px, transparent 2px),
+                linear-gradient(90deg, var(--window-color) 2px, transparent 2px),
+                radial-gradient(circle, var(--window-glow) 20%, transparent 40%);
+            background-size: 15px 15px, 15px 15px, 40px 60px;
+            background-position: 0 0, 0 0, 10px 20px;
+        }
+
+
+        /* The Core - Special Styling */
+        .building.core {
+            --h: 200px;
+            --building-color: #f59e0b;
+            /* Amber Roof */
+            background: radial-gradient(circle, #fcd34d 0%, #f59e0b 100%);
+            animation: pulse-core 4s ease-in-out infinite;
+        }
+
+        #night-mode:checked~.scene-wrapper .building.core {
+            --building-color: #d946ef;
+            /* Magenta Neon */
+            background: #d946ef;
+            box-shadow: 0 0 50px var(--neon-color);
+        }
+
+        @keyframes pulse-core {
+
+            0%,
+            100% {
+                transform: translateZ(var(--h, 200px)) scale(1);
+            }
+
+            50% {
+                transform: translateZ(calc(var(--h, 200px) + 10px)) scale(0.98);
+            }
+        }
+
+        /* Building Types */
+        .tower {
+            --h: 140px;
+        }
+
+        .apt {
+            --h: 100px;
+        }
+
+        .house {
+            --h: 40px;
+        }
+
+        .shop {
+            --h: 60px;
+        }
+
+        /* --- TRAFFIC SYSTEM --- */
+        /* Cars move along the grid gaps or absolute paths on top */
+        .traffic-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform-style: preserve-3d;
+            z-index: 10;
+        }
+
+        .car {
+            position: absolute;
+            width: 12px;
+            height: 18px;
+            background: #ef4444;
+            transform: translateZ(2px);
+            /* Hover slightly above road */
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.6);
+            border-radius: 2px;
+            transition: background-color 1s;
+        }
+
+        #night-mode:checked~.scene-wrapper .car {
+            box-shadow: 0 0 10px #ef4444, 0 15px 10px -5px rgba(255, 255, 255, 0.8);
+            background: #f87171;
+        }
+
+        /* Car Paths */
+        .car-1 {
+            top: 38%;
+            left: -20px;
+            animation: drive-right 5s linear infinite;
+        }
+
+        .car-2 {
+            top: 78%;
+            right: -20px;
+            animation: drive-left 7s linear infinite;
+            background: #3b82f6;
+        }
+
+        /* Blue car */
+        .car-3 {
+            left: 45%;
+            top: -20px;
+            width: 18px;
+            height: 12px;
+            animation: drive-down 6s linear infinite;
+            background: #eab308;
+        }
+
+        /* Yellow car */
+        /* Note: car-3 needs w/h swap if moving vertical? No, just rotate or resize. 
+           If moving down (Top to Bottom), it's vertical. Height > Width.
+        */
+
+        @keyframes drive-right {
+            from {
+                left: -10%;
+            }
+
+            to {
+                left: 110%;
+            }
+        }
+
+        @keyframes drive-left {
+            from {
+                left: 110%;
+            }
+
+            to {
+                left: -10%;
+            }
+        }
+
+        @keyframes drive-down {
+            from {
+                top: -10%;
+            }
+
+            to {
+                top: 110%;
+            }
+        }
+
+        /* Hovering street slows traffic? */
+        .city-grid:hover .car {
+            animation-play-state: paused;
+        }
+
+        /* --- CLOUDS --- */
+        .clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            transform: translateZ(300px);
+            /* High above */
+        }
+
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            opacity: var(--cloud-opacity);
+            transition: opacity 2s;
+        }
+
+        .c1 {
+            width: 100px;
+            height: 40px;
+            top: 10%;
+            left: -100px;
+            animation: float 20s linear infinite;
+        }
+
+        .c2 {
+            width: 140px;
+            height: 60px;
+            top: 60%;
+            left: -150px;
+            animation: float 35s linear infinite reverse;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateX(-100px);
+            }
+
+            100% {
+                transform: translateX(800px);
+            }
+
+            /* Across screen */
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- STATE SWITCH -->
+    <input type="checkbox" id="night-mode">
+
+    <label for="night-mode" class="controls">
+        <span class="toggle-btn">Global Light Switch</span>
+    </label>
+
+    <!-- WRAPPER -->
+    <div class="scene-wrapper">
+        <div class="scene">
+
+            <!-- CLOUDS -->
+            <div class="clouds">
+                <div class="cloud c1"></div>
+                <div class="cloud c2"></div>
+            </div>
+
+            <!-- CITY GRID -->
+            <div class="city-grid">
+
+                <!-- Buildings -->
+                <div class="building house" style="grid-column: 1; grid-row: 1;"></div>
+                <div class="building apt" style="grid-column: 2; grid-row: 1;"></div>
+                <div class="building shop" style="grid-column: 4; grid-row: 1;"></div>
+
+                <div class="building tower" style="grid-column: 1; grid-row: 3;"></div>
+                <div class="building height-2" style="grid-column: 5; grid-row: 2; --h: 80px;"></div>
+
+                <!-- THE CORE -->
+                <div class="building core" style="grid-column: 3; grid-row: 3;"></div>
+
+                <div class="building shop" style="grid-column: 2; grid-row: 4;"></div>
+                <div class="building house" style="grid-column: 6; grid-row: 4;"></div>
+
+                <div class="building tower" style="grid-column: 4; grid-row: 5;"></div>
+                <div class="building apt" style="grid-column: 6; grid-row: 6;"></div>
+                <div class="building house" style="grid-column: 1; grid-row: 6;"></div>
+
+                <!-- TRAFFIC (Absolute within grid) -->
+                <div class="traffic-layer">
+                    <div class="car car-1"></div>
+                    <div class="car car-2"></div>
+                    <div class="car car-3"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
